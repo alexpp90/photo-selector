@@ -69,7 +69,7 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
 
     @Test
     fun `the exported schemas include the current version`() {
-        assertTrue(exportedVersions().toString(), 9 in exportedVersions())
+        assertTrue(exportedVersions().toString(), 10 in exportedVersions())
     }
 
     @Test
@@ -95,8 +95,10 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
 
             val legacy = dao.getScore("legacy")
             assertNotNull("v$version: the cache row stays", legacy)
-            if (version < 8) {
-                assertEquals("v$version: a score from another analysis size is not a cache hit", -1L, legacy!!.fileSize)
+            if (version < 10) {
+                // v8 capped the analysis size, v10 put a noise floor into sharpness (D6): a score
+                // from either older maths is not a cache hit.
+                assertEquals("v$version: a score from older maths is not a cache hit", -1L, legacy!!.fileSize)
             }
             assertEquals("v$version", 70.0, legacy!!.sharpnessScore!!, 1e-9)
             if (version in 3..7) assertEquals("v$version: the rating moved to user_ratings", 3, dao.getUserRating("legacy")?.rating)
@@ -105,6 +107,8 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
             val learn = room.learnDao()
             assertEquals("v$version", 0, learn.shootCount())
             assertTrue("v$version", learn.cameraOverrides().isEmpty())
+            // The copied-photo records (D3) are there, empty, after every path.
+            assertEquals("v$version", 0, room.copiedPhotoDao().count())
             room.close()
         }
     }
@@ -126,14 +130,46 @@ class ScoresDatabaseUpgradeFromEveryExportedSchemaTest {
             .build()
         val dao = room.scoreDao()
 
-        // v8 rows are not invalidated again: the score is still a cache hit.
-        assertEquals(100L, dao.getScore("p")?.fileSize)
+        // Invalidated once more, by v10's noise floor (D6), the row itself kept.
+        assertEquals(-1L, dao.getScore("p")?.fileSize)
         assertEquals(4, dao.getUserRating("p")?.rating)
         assertEquals(1, dao.getTechniqueFactsForUri("p").size)
         assertEquals(1, dao.getAllLessonProgress().size)
         assertEquals(1, dao.getAllPracticeGoals().size)
         room.learnDao().upsertCameraOverride(CameraOverrideEntity("DJI", "FC3582", "drone"))
         assertEquals(1, room.learnDao().cameraOverrides().size)
+        room.close()
+    }
+
+    // [USER 2026-11-16] D6: sharpness gets a noise floor, so a v9 score is not mixed with new ones.
+    @Test
+    fun `migration 9 to 10 invalidates every cached score and keeps ratings and Learn history`() = runTest {
+        val name = "upgrade_9_to_10.db"
+        createAt(9, name) { db ->
+            db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, noiseLevel, rating, lastAccessTime) VALUES ('p', 100, 200, 70.0, 1.5, 0, 900)")
+            db.execSQL("INSERT INTO scores_cache (filePath, fileSize, lastModified, sharpnessScore, rating, lastAccessTime) VALUES ('old', 50, 60, 20.0, 2, 700)")
+            db.execSQL("INSERT INTO user_ratings (uri, rating, updatedAt) VALUES ('p', 4, 800)")
+            db.execSQL("INSERT INTO technique_facts (uri, kind, value, confidence, fileSize, lastModified, detectorVersion) VALUES ('p', 'composition.horizon', 'level', 0.9, 100, 200, 3)")
+            db.execSQL("INSERT INTO shoot_summaries (folderKey, cameraClass, cameraNames, firstCaptureTime, lastCaptureTime, photoCount, metricsJson, detectorVersion, partial, updatedAt) VALUES ('k', 'camera', 'X', 1, 2, 3, '{}', 3, 0, 4)")
+            db.execSQL("INSERT INTO camera_overrides (make, model, cameraClass) VALUES ('DJI', 'FC3582', 'drone')")
+        }
+
+        val room = Room.databaseBuilder(context, ScoresDatabase::class.java, name)
+            .addMigrations(*ScoresDatabase.MIGRATIONS)
+            .allowMainThreadQueries()
+            .build()
+        val dao = room.scoreDao()
+
+        assertEquals("no v9 score is a cache hit", -1L, dao.getScore("p")?.fileSize)
+        assertEquals(-1L, dao.getScore("old")?.fileSize)
+        assertEquals(4, dao.getUserRating("p")?.rating)
+        assertEquals("a legacy rating not yet in user_ratings is copied there", 2, dao.getUserRating("old")?.rating)
+        assertEquals(1, dao.getTechniqueFactsForUri("p").size)
+        assertEquals(1, room.learnDao().shootCount())
+        assertEquals(1, room.learnDao().cameraOverrides().size)
+        assertEquals(0, room.copiedPhotoDao().count())
+        room.copiedPhotoDao().upsert(CopiedPhotoEntity("k", "content://p", 100, 200, "doc", "{\"doc\":100}", 5))
+        assertEquals(1, room.copiedPhotoDao().copiedIn("k").size)
         room.close()
     }
 }

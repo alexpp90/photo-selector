@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Sharpness no longer counts sensor noise as detail.** The grain of a high-ISO frame used to raise its sharpness score, so a noisy, blank frame could outscore a crisp one. The score now takes off what the noise alone adds, measured on each photo; a clean photo keeps about the figure it had. Your cached scores are measured again on the next Scan, so old and new figures are never compared.
+- A photo you copied to the Selection is still marked as copied, counted once and refused a second filing ("Already copied") when you open its folder again, after a restart too. If the copy has since been deleted from the Selection, or the photo has changed, it opens undecided.
+
+### Fixed
+
+- A star rating on a RAW or TIFF photo whose sidecar is spelled in capitals (`IMG_1.XMP`) now updates that sidecar instead of writing a second `IMG_1.CR3.xmp` beside it.
+
 ## [0.8.0] - 2026-11-13
 
 ### Added

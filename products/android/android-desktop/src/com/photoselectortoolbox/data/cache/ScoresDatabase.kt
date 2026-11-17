@@ -14,14 +14,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PracticeGoalEntity::class,
         ShootSummaryEntity::class,
         CameraOverrideEntity::class,
+        CopiedPhotoEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class ScoresDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
 
     abstract fun learnDao(): LearnDao
+
+    abstract fun copiedPhotoDao(): CopiedPhotoDao
 
     companion object {
         /**
@@ -139,6 +142,26 @@ abstract class ScoresDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v9 → v10, two changes. (1) Sharpness gets a noise floor (`[USER 2026-11-16]` D6,
+         * `NoiseFloorSharpness`), so every cached sharpness was computed by the old maths: as in
+         * v7 → v8 each row's cache key is broken (`fileSize = -1`), so the next scan recomputes
+         * it and old and new figures are never compared side by side; legacy ratings not yet in
+         * `user_ratings` are copied there first. (2) `copied_photos` (D3): a copied photo stays
+         * decided when its folder is opened again. No other table changes.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `user_ratings` (`uri`, `rating`, `updatedAt`) SELECT `filePath`, `rating`, `lastAccessTime` FROM `scores_cache` WHERE `rating` != 0" // ui-text: ignore (SQL)
+                )
+                db.execSQL("UPDATE `scores_cache` SET `fileSize` = -1") // ui-text: ignore (SQL)
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `copied_photos` (`folderKey` TEXT NOT NULL, `sourceUri` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `primaryCopyId` TEXT NOT NULL, `keptFilesJson` TEXT NOT NULL, `copiedAt` INTEGER NOT NULL, PRIMARY KEY(`folderKey`, `sourceUri`))" // ui-text: ignore (SQL)
+                )
+            }
+        }
+
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -148,6 +171,7 @@ abstract class ScoresDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
     }
 }
