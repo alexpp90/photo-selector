@@ -62,32 +62,14 @@ object CopyMoveFeedback {
     }
 
     /**
-     * File name of a document URI string: the last path segment of the (percent-decoded) document
-     * id, so `…/document/primary%3ADCIM%2FIMG_1.JPG` gives `IMG_1.JPG`.
-     */
-    fun displayNameOf(uri: String): String {
-        val last = uri.substringAfterLast('/')
-        val decoded = try {
-            java.net.URLDecoder.decode(last, "UTF-8")
-        } catch (_: Exception) {
-            last
-        }
-        return decoded.substringAfterLast('/').substringAfterLast(':')
-    }
-
-    /**
      * The name the primary file got when the transfer had to add a collision suffix, or null when it
-     * kept its name **or when the destination URI does not say**. Providers whose document ids are
-     * not file names (`msf:123`, Drive and camera ids) would otherwise be reported as "Copied as 123".
-     * A suffixed name keeps the file's extension, so an id without it is never taken for a name.
+     * kept its name or the engine could not read it. [destinationName] is the display name the
+     * `:saf` engine read back from the written document (`FileOperationResult.destinationName`);
+     * a name is never derived from the destination URI, whose last segment is the provider's
+     * document id (`msf:123`, Drive and camera ids), not the file name (H-JP-2).
      */
-    fun renamedName(sourceName: String, destinationUri: String?): String? {
-        val candidate = destinationUri?.let(::displayNameOf) ?: return null
-        if (candidate == sourceName) return null
-        val sourceExtension = PhotoExtensions.extensionOf(sourceName)
-        if (sourceExtension.isEmpty() || PhotoExtensions.extensionOf(candidate) != sourceExtension) return null
-        return candidate
-    }
+    fun renamedName(sourceName: String, destinationName: String?): String? =
+        destinationName?.takeIf { it.isNotEmpty() && it != sourceName }
 
     /** True when the message reports an error (any file failed or only partially moved). */
     fun isError(failed: Int, partial: Int = 0): Boolean = failed > 0 || partial > 0

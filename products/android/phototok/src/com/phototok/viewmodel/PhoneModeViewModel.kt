@@ -250,9 +250,8 @@ class PhoneModeViewModel @Inject constructor(
     fun dismissCardDoneSheet() = transfer.dismissCardDoneSheet()
     fun keepAllFilesOnCard() = transfer.keepAllFilesOnCard()
     fun deleteQueuedRejectsOnCard() = transfer.deleteQueuedRejectsOnCard()
-    fun advanceClearCardConfirmation() = transfer.advanceClearCardConfirmation()
-    fun cancelClearCardConfirmation() = transfer.cancelClearCardConfirmation()
     fun confirmClearEntireCard() = transfer.confirmClearEntireCard()
+    fun cancelClearEntireCard() = transfer.cancelClearEntireCard()
 
     /** Toggle in-place favourite status on the current photo (`U-13`, `U-17`). */
     fun toggleCurrentFavourite() {

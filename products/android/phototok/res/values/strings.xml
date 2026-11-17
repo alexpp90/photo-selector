@@ -142,9 +142,15 @@
     <string name="dialog_body_trash_split">%1$d to Trash · %2$d permanent</string>
     <string name="dialog_title_pro_mode">Pro mode adds</string>
     <string name="dialog_title_card_done">Card done</string>
+    <string name="dialog_title_reset_all_seen">Reset all seen?</string>
     <string name="label_card_copied">%1$d copied</string>
     <string name="cd_card_copied">%1$d copied off the card</string>
     <string name="dialog_body_card_loss">Photos never copied are lost.</string>
+    <!-- Delete all progress sheet ([USER 2026-11-16] D2) -->
+    <string name="title_deleting">Deleting…</string>
+    <string name="label_clear_progress">%1$d / %2$d</string>
+    <string name="cd_clear_progress">Deleting, %1$d of %2$d</string>
+    <string name="action_cancelling">Cancelling…</string>
     <plurals name="dialog_title_delete_all">
         <item quantity="one">Delete 1 file?</item>
         <item quantity="other">Delete all %1$d files?</item>
@@ -200,6 +206,7 @@
     <string name="snackbar_all_seen">All seen</string>
     <string name="snackbar_rejects_deleted">Rejects deleted</string>
     <string name="snackbar_deleted_count">%1$d deleted</string>
+    <string name="snackbar_deleted_left">%1$d deleted · %2$d left</string>
     <string name="snackbar_photo_deleted">Photo deleted</string>
     <string name="snackbar_not_deleted">%1$d not deleted</string>
     <string name="snackbar_action_retry">Retry</string>

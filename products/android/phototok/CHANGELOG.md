@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Delete all** on an SD card or camera shows how far it is: a sheet with a progress bar, "120 / 2000" and **Cancel**. Cancel (or Back) stops before the next file and says what happened ("120 deleted · 1880 left"); the card is then not marked cleared and **Delete all** offers the files that are left. Before, nothing showed for minutes on a full card and there was no way to stop.
+
+### Changed
+- **Reset all seen** in Settings asks first ("Reset all seen?", Cancel focused). **Reset seen photos** for the open folder is still one tap.
+
 ### Fixed
+- "Copied as IMG-2.jpg" names the file the copy actually got, also in folders whose document ids are not file names; Jackpix no longer guesses the name from the destination address.
 - Scrolling a large folder no longer freezes. In a camera roll of a few thousand photos every swipe stopped the feed for 3–5 seconds; it now scrolls smoothly whatever the folder size.
 - Preloading the next photos no longer decodes each one at full camera resolution (about 190 MB for a 48 MP photo) only to throw it away: they are prepared at screen size and shown straight from memory.
 

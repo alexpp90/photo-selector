@@ -168,10 +168,10 @@
         <error line="53" column="1" source="standard:no-unused-imports" />
         <error line="57" column="1" source="standard:no-unused-imports" />
         <error line="65" column="1" source="standard:no-unused-imports" />
-        <error line="1198" column="35" source="standard:multiline-if-else" />
-        <error line="1199" column="26" source="standard:multiline-if-else" />
-        <error line="1202" column="34" source="standard:multiline-if-else" />
-        <error line="1207" column="28" source="standard:multiline-if-else" />
+        <error line="1203" column="35" source="standard:multiline-if-else" />
+        <error line="1204" column="26" source="standard:multiline-if-else" />
+        <error line="1207" column="34" source="standard:multiline-if-else" />
+        <error line="1212" column="28" source="standard:multiline-if-else" />
     </file>
     <file name="src/com/phototok/ui/phonemode/PhoneModeTopBar.kt">
         <error line="48" column="1" source="standard:spacing-between-declarations-with-annotations" />
@@ -296,8 +296,6 @@
     </file>
     <file name="tests/unit/com/phototok/domain/CopyMoveFeedbackTest.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="143" column="22" source="standard:wrapping" />
-        <error line="144" column="89" source="standard:wrapping" />
     </file>
     <file name="tests/unit/com/phototok/domain/FavouriteSyncLogicTest.kt">
         <error line="245" column="1" source="standard:no-consecutive-blank-lines" />
@@ -412,11 +410,11 @@
     </file>
     <file name="tests/unit/com/phototok/viewmodel/PhoneModeViewModelTest.kt">
         <error line="3" column="1" source="standard:import-ordering" />
-        <error line="72" column="5" source="standard:spacing-between-declarations-with-comments" />
-        <error line="114" column="29" source="standard:multiline-if-else" />
-        <error line="115" column="22" source="standard:multiline-if-else" />
-        <error line="2653" column="22" source="standard:wrapping" />
-        <error line="2654" column="63" source="standard:wrapping" />
+        <error line="73" column="5" source="standard:spacing-between-declarations-with-comments" />
+        <error line="115" column="29" source="standard:multiline-if-else" />
+        <error line="116" column="22" source="standard:multiline-if-else" />
+        <error line="2761" column="22" source="standard:wrapping" />
+        <error line="2762" column="63" source="standard:wrapping" />
     </file>
     <file name="tests/unit/com/phototok/viewmodel/SelectionViewerViewModelTest.kt">
         <error line="3" column="1" source="standard:import-ordering" />

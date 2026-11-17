@@ -30,6 +30,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -427,7 +428,7 @@ internal class TransferUndoHolder(
                             }
                             if (img === currentImage) {
                                 // The primary file got a collision suffix: say which name it became.
-                                CopyMoveFeedback.renamedName(img.fileName, result.destinationUri)?.let { renamedTo = it }
+                                CopyMoveFeedback.renamedName(img.fileName, result.destinationName)?.let { renamedTo = it }
                             }
                             val dest = result.destinationUri ?: targetUri
                             cardTransferJournal.recordTransfer(state.sourceKind, img.uri, state.sourceFolderUri, dest)
@@ -768,26 +769,29 @@ internal class TransferUndoHolder(
         _uiState.showFeedback(UiText.of(R.string.snackbar_rejects_deleted))
     }
 
-    /** Step 1 -> Step 2 for Option 3 ("Clear entire card"). */
-    fun advanceClearCardConfirmation() {
-        _uiState.update { state ->
-            state.copy(cardClearStep = (state.cardClearStep + 1).coerceAtMost(2))
-        }
+    /** One Delete all run; [cancelClearEntireCard] sets [cancelRequested], the run reads it before each file. */
+    private class ClearRun {
+        @Volatile
+        var cancelRequested = false
     }
 
-    fun cancelClearCardConfirmation() {
-        _uiState.update { it.copy(cardClearStep = 0) }
-    }
+    /** The run the progress sheet shows; a run left behind by a folder switch no longer writes the progress. */
+    @Volatile
+    private var activeClear: ClearRun? = null
 
     /**
      * Final confirmation for Option 3: Clear entire card (`U-14c`). It deletes exactly the files
-     * [PhoneModeUiState.cardClearFileCount] announced, and only once the scan has finished. The
-     * card counts as cleared only when nothing is left on it; files that could not be deleted stay
-     * in the feed and the outcome says how many went.
+     * [PhoneModeUiState.cardClearFileCount] announced, and only once the scan has finished. While it
+     * runs, [PhoneModeUiState.cardClearProgress] counts the files done of the total for the progress
+     * sheet ([USER 2026-11-16] D2); Cancel ([cancelClearEntireCard]) stops between two files, never
+     * in the middle of one. The feed is changed once, at the end. The card counts as cleared only
+     * when nothing is left on it; files that were not deleted stay in the feed, so Delete all can be
+     * run again on what is left, and the outcome says how many went.
      */
     fun confirmClearEntireCard() {
         val state = _uiState.value
         if (state.isDiscovering || state.isLoading) return
+        if (state.cardClearProgress != null) return
         val toDelete = state.cardClearTargets
         if (toDelete.isEmpty()) {
             _uiState.update {
@@ -800,12 +804,19 @@ internal class TransferUndoHolder(
             _uiState.showFeedback(UiText.of(R.string.snackbar_safe_to_unplug))
             return
         }
-        _uiState.update { it.copy(cardClearStep = 3) }
+        val run = ClearRun()
+        activeClear = run
+        _uiState.update {
+            it.copy(cardClearStep = 3, cardClearProgress = CardClearProgress(done = 0, total = toDelete.size))
+        }
         val epochAtLaunch = feed.feedEpoch
         appScope.launch {
             val deletedUris = mutableSetOf<String>()
             var freedBytes = 0L
+            var processed = 0
             for (img in toDelete) {
+                // Cancel stops here, between two files: a delete that has started is never cut off.
+                if (!isActive || run.cancelRequested) break
                 val ok = try {
                     imageRepository.deleteImage(Uri.parse(img.uri))
                 } catch (e: CancellationException) {
@@ -817,10 +828,18 @@ internal class TransferUndoHolder(
                     deletedUris.add(img.uri)
                     freedBytes += img.fileSize
                 }
+                processed++
+                if (activeClear === run) {
+                    _uiState.update { s -> s.copy(cardClearProgress = s.cardClearProgress?.copy(done = processed)) }
+                }
             }
+            val cancelled = processed < toDelete.size
+            val stillShown = activeClear === run
+            if (stillShown) activeClear = null
             val deletedCount = deletedUris.size
+            val leftBehind = toDelete.size - deletedCount
             // A wiped card starts a new count; a card with files left keeps what was copied off it.
-            if (deletedCount == toDelete.size) cardTransferJournal.clearSource(state.sourceFolderUri ?: "")
+            if (leftBehind == 0) cardTransferJournal.clearSource(state.sourceFolderUri ?: "")
             if (deletedCount > 0) {
                 statsRepository.recordCommittedDelete(
                     kind = state.sourceKind,
@@ -831,14 +850,17 @@ internal class TransferUndoHolder(
             }
             if (feed.feedEpoch != epochAtLaunch) {
                 // Left the card meanwhile: the deletions stand, but the screen shows something else.
-                _uiState.update { it.copy(cardClearStep = 0) }
-                _uiState.showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
+                if (stillShown) _uiState.update { it.copy(cardClearStep = 0, cardClearProgress = null) }
+                _uiState.showFeedback(clearOutcome(deletedCount, leftBehind, toDelete.size, cancelled, inFeed = false))
                 return@launch
             }
-            val leftBehind = toDelete.size - deletedCount
             _uiState.update { s ->
-                val images = s.images.filter { it.uri !in deletedUris }
-                val all = s.allImages.filter { it.uri !in deletedUris }
+                // A sidecar that went while its photo stayed (a cancel between the two) is not
+                // counted again by the next Delete all.
+                fun ImageItem.withoutDeleted(): ImageItem =
+                    if (sidecars.none { it.uri in deletedUris }) this else copy(sidecars = sidecars.filter { it.uri !in deletedUris })
+                val images = s.images.filter { it.uri !in deletedUris }.map { it.withoutDeleted() }
+                val all = s.allImages.filter { it.uri !in deletedUris }.map { it.withoutDeleted() }
                 s.copy(
                     images = images,
                     allImages = all,
@@ -846,6 +868,7 @@ internal class TransferUndoHolder(
                     portraitSectionStart = PhoneFeedOrdering.portraitSplit(images, s.sortByOrientation),
                     showCardDoneSheet = false,
                     cardClearStep = 0,
+                    cardClearProgress = null,
                     cardClearComplete = leftBehind == 0 && all.isEmpty(),
                     cardDeletedCount = s.cardDeletedCount + deletedCount,
                     emptyFolderMessage = if (leftBehind == 0 && all.isEmpty()) {
@@ -855,11 +878,29 @@ internal class TransferUndoHolder(
                     },
                 )
             }
-            if (leftBehind == 0) {
-                _uiState.showFeedback(UiText.of(R.string.snackbar_deleted_count, deletedCount))
-            } else {
-                _uiState.showFeedback(UiText.of(R.string.error_delete_some, deletedCount, toDelete.size), isError = true)
-            }
+            val outcome = clearOutcome(deletedCount, leftBehind, toDelete.size, cancelled, inFeed = true)
+            _uiState.showFeedback(outcome, isError = !cancelled && leftBehind > 0)
         }
+    }
+
+    /**
+     * Cancel on the Delete all progress sheet (and Back): the run stops before the next file. The
+     * sheet says "Cancelling…" until the file being deleted returns.
+     */
+    fun cancelClearEntireCard() {
+        val run = activeClear ?: return
+        run.cancelRequested = true
+        _uiState.update { s -> s.copy(cardClearProgress = s.cardClearProgress?.copy(cancelling = true)) }
+    }
+
+    /**
+     * The snackbar after Delete all: "N deleted" when everything went, "N deleted · M left" after a
+     * cancel, and "Deleted N of M" when files could not be deleted (an error). Off the card's feed a
+     * failure is reported as the plain count, as before.
+     */
+    private fun clearOutcome(deleted: Int, leftBehind: Int, total: Int, cancelled: Boolean, inFeed: Boolean): UiText = when {
+        cancelled && leftBehind > 0 -> UiText.of(R.string.snackbar_deleted_left, deleted, leftBehind)
+        leftBehind == 0 || !inFeed -> UiText.of(R.string.snackbar_deleted_count, deleted)
+        else -> UiText.of(R.string.error_delete_some, deleted, total)
     }
 }

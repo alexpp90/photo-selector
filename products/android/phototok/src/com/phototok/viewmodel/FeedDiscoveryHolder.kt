@@ -204,6 +204,7 @@ internal class FeedDiscoveryHolder(
                 showCardDoneSheet = false,
                 cardClearStep = 0,
                 cardClearComplete = false,
+                cardClearProgress = null,
             )
         }
         discoveryJob = viewModelScope.launch {
